@@ -7,7 +7,10 @@ import {
   Loader2, 
   Settings,
   Bookmark,
-  Sparkles
+  Sparkles,
+  Volume2,
+  VolumeX,
+  Radio
 } from 'lucide-react';
 import { GeoLocation, SavedCity } from '../types';
 import { searchCities, POPULAR_LOCATIONS } from '../services/weatherApi';
@@ -22,6 +25,9 @@ interface HeaderProps {
   savedCities: SavedCity[];
   onToggleSaveCity: (city: GeoLocation) => void;
   isCitySaved: boolean;
+  isAsmrPlaying?: boolean;
+  onToggleAsmr?: () => void;
+  asmrConditionName?: string;
 }
 
 export function Header({
@@ -34,6 +40,9 @@ export function Header({
   savedCities,
   onToggleSaveCity,
   isCitySaved,
+  isAsmrPlaying = false,
+  onToggleAsmr,
+  asmrConditionName = 'Clear',
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<GeoLocation[]>([]);
@@ -104,49 +113,83 @@ export function Header({
   };
 
   return (
-    <header className="relative z-30 w-full max-w-md mx-auto pt-3 pb-1 px-4">
-      {/* Top Mobile Bar */}
-      <div className="flex items-center justify-between gap-2 py-1">
-        {/* Brand & Location Title */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shadow-sm">
-            <span className="font-display font-black text-cyan-300 text-sm tracking-tighter">dx</span>
-          </div>
-          <div>
+    <header className="sticky top-0 z-40 bg-[#090D16]/90 backdrop-blur-xl border-b border-white/10 px-4 pt-3 pb-2 transition-all">
+      <div className="flex items-center justify-between gap-2 max-w-md mx-auto">
+        
+        {/* Brand & City Search Trigger */}
+        <button
+          id="mobile-search-trigger"
+          onClick={() => {
+            setIsSearchOpen(true);
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+          }}
+          className="flex items-center gap-2 flex-1 py-1.5 px-3 rounded-2xl bg-slate-900/90 border border-white/10 text-left hover:border-cyan-500/40 active:scale-[0.99] transition-all shadow-inner group min-w-0"
+          aria-label="Search city"
+        >
+          <Search size={15} className="text-cyan-400 shrink-0 group-hover:scale-110 transition-transform" />
+          <div className="truncate flex-1">
             <div className="flex items-center gap-1.5">
-              <span className="font-display font-extrabold text-base text-white tracking-tight">
-                deuxweather
+              <span className="font-display font-black text-sm text-white truncate">
+                {currentLocation.name}
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {currentLocation.country && (
+                <span className="text-[11px] font-mono text-slate-400 truncate">
+                  {currentLocation.country}
+                </span>
+              )}
             </div>
-            <span className="text-[10px] text-slate-400 font-mono block -mt-0.5">
-              {currentLocation.name}
-            </span>
           </div>
-        </div>
+          <span className="text-[10px] font-mono bg-white/5 text-slate-400 px-1.5 py-0.5 rounded border border-white/5 shrink-0 hidden sm:inline">
+            FIND
+          </span>
+        </button>
 
-        {/* Action Buttons: AI, Bookmark, GPS, Settings */}
-        <div className="flex items-center gap-1.5">
-          {/* Search Trigger */}
-          <button
-            id="mobile-search-trigger-btn"
-            onClick={() => {
-              setIsSearchOpen(true);
-              setTimeout(() => searchInputRef.current?.focus(), 50);
-            }}
-            className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 transition-all"
-            aria-label="Search city"
-          >
-            <Search size={16} />
-          </button>
+        {/* Action Controls Cluster */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          
+          {/* Weather ASMR Audio Ambient Sound Toggle */}
+          {onToggleAsmr && (
+            <button
+              id="mobile-asmr-toggle-btn"
+              onClick={onToggleAsmr}
+              className={`h-9 px-2.5 rounded-xl border flex items-center gap-1.5 active:scale-95 transition-all relative ${
+                isAsmrPlaying
+                  ? 'bg-cyan-500/20 border-cyan-400/60 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)]'
+                  : 'bg-slate-900/90 border-white/10 text-slate-400 hover:text-slate-200'
+              }`}
+              title={isAsmrPlaying ? `Mute Weather ASMR (${asmrConditionName})` : `Play Weather ASMR Soundscape (${asmrConditionName})`}
+              aria-label="Toggle Weather ASMR sound"
+            >
+              {isAsmrPlaying ? (
+                <>
+                  {/* Animated sound wave bars */}
+                  <div className="flex items-end gap-0.5 h-3.5">
+                    <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.8s_infinite] h-2.5" />
+                    <span className="w-0.5 bg-cyan-300 rounded-full animate-[bounce_1.1s_infinite_0.2s] h-3.5" />
+                    <span className="w-0.5 bg-cyan-400 rounded-full animate-[bounce_0.9s_infinite_0.4s] h-2" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-200 hidden xs:inline">
+                    ASMR
+                  </span>
+                </>
+              ) : (
+                <>
+                  <VolumeX size={15} className="text-slate-400" />
+                  <span className="text-[10px] font-mono text-slate-400 hidden xs:inline">
+                    ASMR
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
-          {/* AI Meteorological Assistant */}
+          {/* AI Weather Assistant Modal Trigger */}
           <button
-            id="mobile-ai-assistant-btn"
+            id="mobile-ai-chat-btn"
             onClick={onOpenAiChat}
-            className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 flex items-center justify-center active:scale-95 transition-all shadow-sm"
+            className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 text-cyan-300 hover:border-cyan-400 flex items-center justify-center active:scale-95 transition-all shadow-sm"
             aria-label="Ask AI Assistant"
-            title="Ask AI Assistant"
+            title="Ask AI Weather Assistant"
           >
             <Sparkles size={16} className="text-cyan-400" />
           </button>
@@ -161,6 +204,7 @@ export function Header({
                 : 'bg-slate-900/90 border-white/10 text-slate-400 hover:text-white'
             }`}
             aria-label="Save to favorites"
+            title="Save to favorites"
           >
             <Bookmark size={16} className={isCitySaved ? 'fill-amber-400' : ''} />
           </button>
@@ -172,6 +216,7 @@ export function Header({
             disabled={isLocating}
             className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-cyan-400 hover:text-cyan-300 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
             aria-label="Locate GPS position"
+            title="Locate GPS position"
           >
             <Navigation size={16} className={isLocating ? 'animate-spin text-cyan-300' : ''} />
           </button>
@@ -182,6 +227,7 @@ export function Header({
             onClick={onOpenSettings}
             className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 transition-all"
             aria-label="Open settings"
+            title="Open settings"
           >
             <Settings size={16} />
           </button>

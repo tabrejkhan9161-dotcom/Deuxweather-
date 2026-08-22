@@ -4,7 +4,9 @@ import {
   AlertCircle, 
   Check, 
   Radio,
-  ExternalLink
+  ExternalLink,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { 
   GeoLocation, 
@@ -18,10 +20,13 @@ import {
 } from './types';
 import { fetchWeatherData, fetchAQIData, reverseGeocode, POPULAR_LOCATIONS } from './services/weatherApi';
 import { getWeatherCondition } from './utils/weatherUtils';
+import { weatherAsmr } from './utils/weatherAsmrAudio';
 import { WeatherAtmosphere } from './components/WeatherAtmosphere';
 import { Header } from './components/Header';
 import { LiveMetricsBar } from './components/LiveMetricsBar';
 import { CurrentWeatherHero } from './components/CurrentWeatherHero';
+import { PitchAndPlayCard } from './components/PitchAndPlayCard';
+import { SunPathVisualizer } from './components/SunPathVisualizer';
 import { VibeCastCard } from './components/VibeCastCard';
 import { AQICommandCenter } from './components/AQICommandCenter';
 import { ForecastSection } from './components/ForecastSection';
@@ -48,6 +53,9 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ASMR Audio Ambient Synthesizer State
+  const [isAsmrPlaying, setIsAsmrPlaying] = useState<boolean>(false);
 
   // Modals
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -135,6 +143,43 @@ export default function App() {
     localStorage.setItem('deuxweather_saved_cities', JSON.stringify(updated));
   };
 
+  const currentConditionMeta = weatherData
+    ? getWeatherCondition(weatherData.current.weather_code, weatherData.current.is_day)
+    : getWeatherCondition(0, 1);
+
+  const isDay = weatherData ? weatherData.current.is_day === 1 : true;
+  const isCitySaved = savedCities.some((c) => c.name.toLowerCase() === currentLocation.name.toLowerCase());
+  const precipProb = weatherData?.daily.precipitation_probability_max?.[0] ?? 0;
+
+  // Toggle Weather ASMR Ambient Audio
+  const handleToggleAsmr = () => {
+    if (isAsmrPlaying) {
+      weatherAsmr.stop();
+      setIsAsmrPlaying(false);
+      showToast('Weather ASMR muted', 'info');
+    } else {
+      const conditionLabel = currentConditionMeta.label;
+      weatherAsmr.play(conditionLabel, isDay);
+      setIsAsmrPlaying(true);
+      showToast(`ASMR Active: ${conditionLabel} soundscape`, 'success');
+    }
+  };
+
+  // Sync ASMR sound when weather conditions or city changes
+  useEffect(() => {
+    if (isAsmrPlaying && weatherData) {
+      const conditionLabel = currentConditionMeta.label;
+      weatherAsmr.play(conditionLabel, isDay);
+    }
+  }, [weatherData?.current.weather_code, weatherData?.current.is_day, currentLocation.name]);
+
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      weatherAsmr.stop();
+    };
+  }, []);
+
   const loadWeatherData = useCallback(async (loc: GeoLocation, showRefreshAnimation = false) => {
     if (showRefreshAnimation) {
       setIsRefreshing(true);
@@ -209,14 +254,6 @@ export default function App() {
     );
   };
 
-  const currentConditionMeta = weatherData
-    ? getWeatherCondition(weatherData.current.weather_code, weatherData.current.is_day)
-    : getWeatherCondition(0, 1);
-
-  const isDay = weatherData ? weatherData.current.is_day === 1 : true;
-  const isCitySaved = savedCities.some((c) => c.name.toLowerCase() === currentLocation.name.toLowerCase());
-  const precipProb = weatherData?.daily.precipitation_probability_max?.[0] ?? 0;
-
   return (
     <div className="relative min-h-screen bg-[#090D16] text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
       
@@ -275,7 +312,7 @@ export default function App() {
       {/* Strict Mobile-First App Shell (Max 450px Centered) */}
       <div className="relative z-10 flex flex-col min-h-screen max-w-[450px] mx-auto w-full">
         
-        {/* Mobile Header */}
+        {/* Mobile Header with Weather ASMR Toggle */}
         <Header
           currentLocation={currentLocation}
           onSelectLocation={(loc) => loadWeatherData(loc)}
@@ -286,6 +323,9 @@ export default function App() {
           savedCities={savedCities}
           onToggleSaveCity={handleToggleSaveCity}
           isCitySaved={isCitySaved}
+          isAsmrPlaying={isAsmrPlaying}
+          onToggleAsmr={handleToggleAsmr}
+          asmrConditionName={currentConditionMeta.label}
         />
 
         {/* Vertical Stack Body */}
@@ -325,7 +365,7 @@ export default function App() {
           {/* Mobile-First Vertically Stacked Meteorological Modules */}
           {weatherData && aqiData && (
             <>
-              {/* 1. Live Single-Line Telemetry Chain */}
+              {/* 1. Live Single-Line Telemetry Chain / Modular iOS-style Widget */}
               <LiveMetricsBar
                 current={weatherData.current}
                 tempUnit={tempUnit}
@@ -343,7 +383,23 @@ export default function App() {
                 timezone={weatherData.timezone}
               />
 
-              {/* 3. VibeCast AI: Real-Time Day Planner & Routine Assistant */}
+              {/* 3. "Pitch & Play" Outdoor Sports Index */}
+              <PitchAndPlayCard
+                current={weatherData.current}
+                daily={weatherData.daily}
+                tempUnit={tempUnit}
+                speedUnit={speedUnit}
+              />
+
+              {/* 4. Golden Hour & Sun-Path Visualizer (Dynamic SVG Arc) */}
+              <SunPathVisualizer
+                sunriseStr={weatherData.daily.sunrise[0]}
+                sunsetStr={weatherData.daily.sunset[0]}
+                isDay={isDay}
+                timezone={weatherData.timezone}
+              />
+
+              {/* 5. VibeCast AI: Real-Time Day Planner & Routine Assistant */}
               <VibeCastCard
                 location={currentLocation}
                 current={weatherData.current}
@@ -353,7 +409,7 @@ export default function App() {
                 speedUnit={speedUnit}
               />
 
-              {/* 4. Forecasting: 24-Hour Timeline & 7-Day Range */}
+              {/* 6. Forecasting: 24-Hour Timeline & 7-Day Range */}
               <ForecastSection
                 hourly={weatherData.hourly}
                 daily={weatherData.daily}
@@ -361,13 +417,13 @@ export default function App() {
                 speedUnit={speedUnit}
               />
 
-              {/* 5. Air Quality & Pollutants Command Center */}
+              {/* 7. Air Quality & Pollutants Command Center (Modular Widget) */}
               <AQICommandCenter
                 aqiData={aqiData.current}
                 standard={aqiStandard}
               />
 
-              {/* 6. Atmospheric Sensors 4-Card Grid */}
+              {/* 8. Atmospheric Sensors 4-Card Grid */}
               <AtmosphericDetailsGrid
                 current={weatherData.current}
                 daily={weatherData.daily}
@@ -375,7 +431,7 @@ export default function App() {
                 speedUnit={speedUnit}
               />
 
-              {/* 7. Climate Insights: 30-Day Historical Trend Analysis */}
+              {/* 9. Climate Insights: 30-Day Historical Trend Analysis */}
               <ClimateInsights
                 location={currentLocation}
                 tempUnit={tempUnit}
