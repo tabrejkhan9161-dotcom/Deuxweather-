@@ -1,0 +1,6 @@
+{
+  "name": "deuxweather",
+  "description": "Ultra-modern real-time weather application with dynamic ambient lighting, AQI Command Center, and high-precision global forecasts.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
