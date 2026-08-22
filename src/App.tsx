@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   Loader2, 
   AlertCircle, 
-  RefreshCw, 
   Check, 
   Radio,
   ExternalLink
@@ -13,6 +12,8 @@ import {
   AQIForecastResponse, 
   TempUnit, 
   SpeedUnit, 
+  AQIStandard,
+  ThemePreference,
   SavedCity 
 } from './types';
 import { fetchWeatherData, fetchAQIData, reverseGeocode, POPULAR_LOCATIONS } from './services/weatherApi';
@@ -25,6 +26,9 @@ import { VibeCastCard } from './components/VibeCastCard';
 import { AQICommandCenter } from './components/AQICommandCenter';
 import { ForecastSection } from './components/ForecastSection';
 import { AtmosphericDetailsGrid } from './components/AtmosphericDetailsGrid';
+import { ClimateInsights } from './components/ClimateInsights';
+import { SettingsModal } from './components/SettingsModal';
+import { WeatherAIModal } from './components/WeatherAIModal';
 
 const DEFAULT_CITY: GeoLocation = POPULAR_LOCATIONS[0]; // Tokyo
 
@@ -45,13 +49,25 @@ export default function App() {
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // User Preferences from LocalStorage
+  // Modals
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
+  // User Preferences
   const [tempUnit, setTempUnit] = useState<TempUnit>(() => {
     return (localStorage.getItem('deuxweather_temp_unit') as TempUnit) || 'C';
   });
 
   const [speedUnit, setSpeedUnit] = useState<SpeedUnit>(() => {
     return (localStorage.getItem('deuxweather_speed_unit') as SpeedUnit) || 'km/h';
+  });
+
+  const [aqiStandard, setAqiStandard] = useState<AQIStandard>(() => {
+    return (localStorage.getItem('deuxweather_aqi_standard') as AQIStandard) || 'us';
+  });
+
+  const [themePref, setThemePref] = useState<ThemePreference>(() => {
+    return (localStorage.getItem('deuxweather_theme_pref') as ThemePreference) || 'dark';
   });
 
   const [savedCities, setSavedCities] = useState<SavedCity[]>(() => {
@@ -70,25 +86,33 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Synchronize Preferences to LocalStorage
-  const handleToggleTempUnit = (unit: TempUnit) => {
+  const handleSelectTempUnit = (unit: TempUnit) => {
     setTempUnit(unit);
     localStorage.setItem('deuxweather_temp_unit', unit);
   };
 
-  const handleToggleSpeedUnit = (unit: SpeedUnit) => {
+  const handleSelectSpeedUnit = (unit: SpeedUnit) => {
     setSpeedUnit(unit);
     localStorage.setItem('deuxweather_speed_unit', unit);
   };
 
-  // Toggle Saved City
+  const handleSelectAqiStandard = (std: AQIStandard) => {
+    setAqiStandard(std);
+    localStorage.setItem('deuxweather_aqi_standard', std);
+  };
+
+  const handleSelectThemePref = (pref: ThemePreference) => {
+    setThemePref(pref);
+    localStorage.setItem('deuxweather_theme_pref', pref);
+  };
+
   const handleToggleSaveCity = (loc: GeoLocation) => {
     const exists = savedCities.some((c) => c.name.toLowerCase() === loc.name.toLowerCase());
     let updated: SavedCity[];
 
     if (exists) {
       updated = savedCities.filter((c) => c.name.toLowerCase() !== loc.name.toLowerCase());
-      showToast(`Removed ${loc.name} from saved favorites`, 'info');
+      showToast(`Removed ${loc.name} from favorites`, 'info');
     } else {
       updated = [
         ...savedCities,
@@ -111,7 +135,6 @@ export default function App() {
     localStorage.setItem('deuxweather_saved_cities', JSON.stringify(updated));
   };
 
-  // Fetch telemetry for coordinates
   const loadWeatherData = useCallback(async (loc: GeoLocation, showRefreshAnimation = false) => {
     if (showRefreshAnimation) {
       setIsRefreshing(true);
@@ -132,24 +155,22 @@ export default function App() {
       localStorage.setItem('deuxweather_last_location', JSON.stringify(loc));
       
       if (showRefreshAnimation) {
-        showToast(`Updated telemetry for ${loc.name}`, 'success');
+        showToast(`Synced live telemetry for ${loc.name}`, 'success');
       }
     } catch (err) {
       console.error('Failed to load weather data:', err);
-      setError('Unable to fetch live meteorological data from Open-Meteo servers. Please verify network connection.');
-      showToast('Telemetry sync failed. Retrying...', 'error');
+      setError('Unable to fetch live meteorological data from Open-Meteo servers. Please check your connection.');
+      showToast('Telemetry sync failed', 'error');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
     loadWeatherData(currentLocation);
   }, []);
 
-  // GPS Auto-detect handler
   const handleLocateUser = () => {
     if (!navigator.geolocation) {
       showToast('Geolocation is not supported by your browser', 'error');
@@ -157,7 +178,7 @@ export default function App() {
     }
 
     setIsLocating(true);
-    showToast('Triangulating GPS coordinates...', 'info');
+    showToast('Triangulating GPS position...', 'info');
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -182,33 +203,34 @@ export default function App() {
       (err) => {
         console.warn('Geolocation error:', err);
         setIsLocating(false);
-        showToast('GPS access permission denied or timed out', 'error');
+        showToast('GPS access denied or timed out', 'error');
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
-  // Derive dynamic atmospheric theme
   const currentConditionMeta = weatherData
     ? getWeatherCondition(weatherData.current.weather_code, weatherData.current.is_day)
     : getWeatherCondition(0, 1);
 
   const isDay = weatherData ? weatherData.current.is_day === 1 : true;
   const isCitySaved = savedCities.some((c) => c.name.toLowerCase() === currentLocation.name.toLowerCase());
+  const precipProb = weatherData?.daily.precipitation_probability_max?.[0] ?? 0;
 
   return (
-    <div className="relative min-h-screen text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="relative min-h-screen bg-[#090D16] text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
       
-      {/* Interactive Weather Atmosphere Canvas */}
+      {/* 60fps Lightweight Atmospheric Canvas */}
       <WeatherAtmosphere 
         theme={currentConditionMeta.theme} 
         isDay={isDay} 
+        precipitationProb={precipProb}
       />
 
       {/* Floating Notification Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
-          <div className={`px-4 py-2.5 rounded-2xl glass-panel text-xs font-mono font-semibold flex items-center gap-2 border shadow-2xl ${
+        <div className="fixed bottom-6 inset-x-4 max-w-md mx-auto z-50 animate-in fade-in slide-in-from-bottom-5 duration-200 pointer-events-none">
+          <div className={`px-4 py-2.5 rounded-2xl bg-slate-900/95 text-xs font-mono font-semibold flex items-center gap-2 border shadow-2xl ${
             toastMessage.type === 'success' ? 'border-emerald-500/50 text-emerald-300' :
             toastMessage.type === 'error' ? 'border-rose-500/50 text-rose-300' :
             'border-cyan-500/50 text-cyan-300'
@@ -221,42 +243,67 @@ export default function App() {
         </div>
       )}
 
-      {/* Main App Container */}
-      <div className="relative z-10 flex flex-col min-h-screen">
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        tempUnit={tempUnit}
+        onSelectTempUnit={handleSelectTempUnit}
+        speedUnit={speedUnit}
+        onSelectSpeedUnit={handleSelectSpeedUnit}
+        aqiStandard={aqiStandard}
+        onSelectAqiStandard={handleSelectAqiStandard}
+        themePref={themePref}
+        onSelectThemePref={handleSelectThemePref}
+        onForceRefresh={() => loadWeatherData(currentLocation, true)}
+        isRefreshing={isRefreshing}
+      />
+
+      {/* Real-time AI Meteorological Assistant Modal */}
+      {weatherData && (
+        <WeatherAIModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          location={currentLocation}
+          current={weatherData.current}
+          daily={weatherData.daily}
+          aqiData={aqiData?.current}
+          tempUnit={tempUnit}
+        />
+      )}
+
+      {/* Strict Mobile-First App Shell (Max 450px Centered) */}
+      <div className="relative z-10 flex flex-col min-h-screen max-w-[450px] mx-auto w-full">
         
-        {/* Navigation & Global Search Header */}
+        {/* Mobile Header */}
         <Header
           currentLocation={currentLocation}
           onSelectLocation={(loc) => loadWeatherData(loc)}
           onLocateUser={handleLocateUser}
           isLocating={isLocating}
-          onRefresh={() => loadWeatherData(currentLocation, true)}
-          isRefreshing={isRefreshing}
-          tempUnit={tempUnit}
-          onToggleTempUnit={handleToggleTempUnit}
-          speedUnit={speedUnit}
-          onToggleSpeedUnit={handleToggleSpeedUnit}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenAiChat={() => setIsAiModalOpen(true)}
           savedCities={savedCities}
           onToggleSaveCity={handleToggleSaveCity}
           isCitySaved={isCitySaved}
         />
 
-        {/* Content Body */}
-        <main className="flex-1 space-y-3 pb-12">
+        {/* Vertical Stack Body */}
+        <main className="flex-1 flex flex-col gap-2 pb-10">
           
           {/* Error Alert State */}
           {error && (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-              <div className="glass-panel rounded-2xl p-4 border border-rose-500/40 bg-rose-950/30 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={20} className="text-rose-400 shrink-0" />
-                  <p className="text-xs sm:text-sm text-rose-200">{error}</p>
+            <div className="px-4 pt-2">
+              <div className="rounded-2xl p-4 border border-rose-500/40 bg-rose-950/40 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={18} className="text-rose-400 shrink-0" />
+                  <p className="text-xs text-rose-200">{error}</p>
                 </div>
                 <button
                   onClick={() => loadWeatherData(currentLocation)}
                   className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-200 text-xs font-mono font-semibold hover:bg-rose-500/30 transition-all border border-rose-500/30 shrink-0"
                 >
-                  Retry Connection
+                  Retry
                 </button>
               </div>
             </div>
@@ -264,21 +311,21 @@ export default function App() {
 
           {/* Loading Skeleton */}
           {isLoading && !weatherData && (
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col items-center justify-center space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center animate-pulse">
-                <Loader2 size={32} className="text-cyan-400 animate-spin" />
+            <div className="px-4 py-24 flex flex-col items-center justify-center space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center animate-pulse">
+                <Loader2 size={28} className="text-cyan-400 animate-spin" />
               </div>
               <div className="text-center space-y-1">
-                <h3 className="font-display font-bold text-lg text-white">Syncing Open-Meteo Satellite Feed</h3>
-                <p className="text-xs font-mono text-slate-400">Querying live atmospheric & AQI sensors for {currentLocation.name}...</p>
+                <h3 className="font-display font-bold text-base text-white">Syncing Live Weather Feed</h3>
+                <p className="text-xs font-mono text-slate-400">Fetching satellite & sensor metrics for {currentLocation.name}...</p>
               </div>
             </div>
           )}
 
-          {/* Active Data Modules */}
+          {/* Mobile-First Vertically Stacked Meteorological Modules */}
           {weatherData && aqiData && (
             <>
-              {/* Strict Single-Line Live Metrics Row */}
+              {/* 1. Live Single-Line Telemetry Chain */}
               <LiveMetricsBar
                 current={weatherData.current}
                 tempUnit={tempUnit}
@@ -286,7 +333,7 @@ export default function App() {
                 uvIndex={weatherData.daily.uv_index_max[0]}
               />
 
-              {/* Ultra-HD Current Weather Hero Card with Daylight Arc */}
+              {/* 2. Hero Weather Display with 72px Bold Temperature */}
               <CurrentWeatherHero
                 location={currentLocation}
                 current={weatherData.current}
@@ -296,7 +343,7 @@ export default function App() {
                 timezone={weatherData.timezone}
               />
 
-              {/* VibeCast AI: Smart Real-Time Day Planner & Routine Assistant */}
+              {/* 3. VibeCast AI: Real-Time Day Planner & Routine Assistant */}
               <VibeCastCard
                 location={currentLocation}
                 current={weatherData.current}
@@ -306,12 +353,7 @@ export default function App() {
                 speedUnit={speedUnit}
               />
 
-              {/* AQI Command Center */}
-              <AQICommandCenter
-                aqiData={aqiData.current}
-              />
-
-              {/* 24-Hour Timeline & 7-Day Forecast Micro-Charts */}
+              {/* 4. Forecasting: 24-Hour Timeline & 7-Day Range */}
               <ForecastSection
                 hourly={weatherData.hourly}
                 daily={weatherData.daily}
@@ -319,43 +361,48 @@ export default function App() {
                 speedUnit={speedUnit}
               />
 
-              {/* High-Precision Atmospheric Details 4-Card Grid */}
+              {/* 5. Air Quality & Pollutants Command Center */}
+              <AQICommandCenter
+                aqiData={aqiData.current}
+                standard={aqiStandard}
+              />
+
+              {/* 6. Atmospheric Sensors 4-Card Grid */}
               <AtmosphericDetailsGrid
                 current={weatherData.current}
                 daily={weatherData.daily}
                 tempUnit={tempUnit}
                 speedUnit={speedUnit}
               />
+
+              {/* 7. Climate Insights: 30-Day Historical Trend Analysis */}
+              <ClimateInsights
+                location={currentLocation}
+                tempUnit={tempUnit}
+              />
             </>
           )}
 
         </main>
 
-        {/* Footer */}
-        <footer className="relative z-20 border-t border-white/5 py-6 px-4 text-center text-xs font-mono text-slate-500">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 px-4">
-            <div className="flex items-center gap-2">
-              <span className="font-display font-black text-cyan-400 text-sm">deuxweather</span>
-              <span>•</span>
-              <span>Ultra-HD Real-Time Meteorological Platform</span>
-            </div>
-
-            <div className="flex items-center gap-4 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1">
-                Data powered by{' '}
-                <a 
-                  href="https://open-meteo.com/" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-0.5 underline decoration-cyan-500/30"
-                >
-                  Open-Meteo
-                  <ExternalLink size={10} />
-                </a>
-              </span>
-              <span>•</span>
-              <span className="text-emerald-400">Zero Auth • Global Coverage</span>
-            </div>
+        {/* Mobile Footer */}
+        <footer className="relative z-20 border-t border-white/5 py-4 px-4 text-center text-[11px] font-mono text-slate-500 space-y-1">
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-display font-extrabold text-cyan-400">deuxweather</span>
+            <span>•</span>
+            <span>Mobile Meteorological System</span>
+          </div>
+          <div className="flex items-center justify-center gap-1 text-slate-400">
+            <span>Powered by</span>
+            <a 
+              href="https://open-meteo.com/" 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-cyan-400 underline decoration-cyan-500/30 inline-flex items-center gap-0.5"
+            >
+              Open-Meteo
+              <ExternalLink size={9} />
+            </a>
           </div>
         </footer>
 

@@ -92,6 +92,31 @@ export interface AQIForecastResponse {
 
 export type TempUnit = 'C' | 'F';
 export type SpeedUnit = 'km/h' | 'mph' | 'm/s';
+export type AQIStandard = 'us' | 'european';
+export type ThemePreference = 'dark' | 'light' | 'auto';
+
+export interface ClimateDayPoint {
+  date: string;
+  displayDate: string;
+  actualTempMean: number;
+  actualTempMax: number;
+  actualTempMin: number;
+  historicalAvgTemp: number;
+  actualHumidity: number;
+  historicalAvgHumidity: number;
+  tempAnomaly: number;
+}
+
+export interface ClimateInsightsData {
+  points: ClimateDayPoint[];
+  avgTemp30d: number;
+  historicalAvgTemp30d: number;
+  tempAnomalyOverall: number;
+  avgHumidity30d: number;
+  historicalAvgHumidity30d: number;
+  hottestDay: { date: string; temp: number };
+  coolestDay: { date: string; temp: number };
+}
 
 export interface WeatherTheme {
   category: 'clear' | 'cloudy' | 'rain' | 'snow' | 'storm' | 'fog';

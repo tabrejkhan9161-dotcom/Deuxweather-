@@ -5,7 +5,6 @@ import {
   Droplets, 
   Wind, 
   Sun, 
-  ChevronRight,
   TrendingUp
 } from 'lucide-react';
 import { HourlyWeatherData, DailyWeatherData, TempUnit, SpeedUnit } from '../types';
@@ -33,14 +32,12 @@ export function ForecastSection({
   speedUnit,
 }: ForecastSectionProps) {
   const [activeTab, setActiveTab] = useState<'hourly' | 'daily'>('hourly');
-  const [hoveredHourIndex, setHoveredHourIndex] = useState<number | null>(null);
 
-  // Take the next 24 hourly data points
+  // Next 24 hourly data points
   const hourlyItems = useMemo(() => {
     if (!hourly.time || hourly.time.length === 0) return [];
     
-    // Find current time index or start at 0
-    const nowIso = new Date().toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+    const nowIso = new Date().toISOString().slice(0, 13);
     let startIndex = hourly.time.findIndex((t) => t.startsWith(nowIso));
     if (startIndex === -1) startIndex = 0;
 
@@ -66,20 +63,20 @@ export function ForecastSection({
     return slice;
   }, [hourly]);
 
-  // Compute overall min/max for the 24-hour SVG temperature micro-chart
-  const { minHourlyTemp, maxHourlyTemp, chartSvgPath, chartAreaPath } = useMemo(() => {
+  // Overall min/max for 24-hour SVG curve
+  const { chartSvgPath, chartAreaPath } = useMemo(() => {
     if (hourlyItems.length === 0) {
-      return { minHourlyTemp: 0, maxHourlyTemp: 100, chartSvgPath: '', chartAreaPath: '' };
+      return { chartSvgPath: '', chartAreaPath: '' };
     }
 
     const temps = hourlyItems.map((h) => convertTemp(h.temp, tempUnit));
     const minT = Math.min(...temps);
     const maxT = Math.max(...temps);
-    const range = Math.max(4, maxT - minT);
+    const range = Math.max(3, maxT - minT);
 
-    const svgWidth = 800;
-    const svgHeight = 70;
-    const paddingY = 14;
+    const svgWidth = 600;
+    const svgHeight = 50;
+    const paddingY = 10;
 
     const points = temps.map((t, idx) => {
       const x = (idx / (temps.length - 1)) * svgWidth;
@@ -88,7 +85,6 @@ export function ForecastSection({
       return { x, y };
     });
 
-    // Smooth Bezier path
     let linePath = `M ${points[0].x} ${points[0].y}`;
     for (let i = 0; i < points.length - 1; i++) {
       const curr = points[i];
@@ -100,14 +96,12 @@ export function ForecastSection({
     const areaPath = `${linePath} L ${points[points.length - 1].x} ${svgHeight} L ${points[0].x} ${svgHeight} Z`;
 
     return {
-      minHourlyTemp: minT,
-      maxHourlyTemp: maxT,
       chartSvgPath: linePath,
       chartAreaPath: areaPath,
     };
   }, [hourlyItems, tempUnit]);
 
-  // Calculate 7-day global min & max for scale normalization
+  // 7-day global min & max for scale
   const { weekMinTemp, weekMaxTemp } = useMemo(() => {
     if (!daily.temperature_2m_min || daily.temperature_2m_min.length === 0) {
       return { weekMinTemp: 0, weekMaxTemp: 40 };
@@ -121,141 +115,108 @@ export function ForecastSection({
   }, [daily, tempUnit]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 relative z-20">
+    <div className="w-full max-w-md mx-auto px-4 py-2 relative z-20">
       <div 
         id="forecasting-section"
-        className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-6"
+        className="rounded-2xl p-4 sm:p-5 bg-slate-900/80 border border-white/10 shadow-lg space-y-4"
       >
-        {/* Navigation Tabs & Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-              <TrendingUp size={20} />
+        {/* Header & Tabs */}
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+              <TrendingUp size={16} />
             </div>
-            <div>
-              <h2 className="font-display font-extrabold text-xl text-white tracking-tight">
-                High-Precision Forecasting
-              </h2>
-              <p className="text-xs text-slate-400 font-mono">
-                Real-time meteorological projections & temperature curves
-              </p>
-            </div>
+            <h3 className="font-semibold text-sm text-white">
+              Forecasting
+            </h3>
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center p-1 rounded-xl bg-slate-900/90 border border-white/10 text-xs font-mono">
+          <div className="flex items-center p-0.5 rounded-lg bg-slate-950 border border-white/10 text-[11px] font-mono">
             <button
               onClick={() => setActiveTab('hourly')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
                 activeTab === 'hourly'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Clock size={14} />
-              <span>24-Hour Timeline</span>
+              <Clock size={12} />
+              <span>24-Hour</span>
             </button>
             <button
               onClick={() => setActiveTab('daily')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${
                 activeTab === 'daily'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(6,182,212,0.4)]'
+                  ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Calendar size={14} />
-              <span>7-Day Extended</span>
+              <Calendar size={12} />
+              <span>7-Day</span>
             </button>
           </div>
         </div>
 
-        {/* 24-Hour Interactive Horizontal Timeline */}
+        {/* 24-Hour Timeline */}
         {activeTab === 'hourly' && (
-          <div className="space-y-4">
-            
-            {/* SVG Micro-Chart Curve */}
-            <div className="relative w-full h-20 px-2 rounded-2xl bg-slate-900/60 border border-white/5 overflow-hidden">
-              <div className="absolute top-2 left-3 flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                <span className="text-cyan-400 font-semibold">TEMPERATURE CURVE</span>
-                <span>•</span>
-                <span>Max: {maxHourlyTemp}°{tempUnit} / Min: {minHourlyTemp}°{tempUnit}</span>
-              </div>
-
+          <div className="space-y-3">
+            {/* SVG Micro-Curve */}
+            <div className="relative w-full h-12 rounded-xl bg-slate-950/50 border border-white/5 overflow-hidden">
               <svg 
-                className="w-full h-full pt-4" 
-                viewBox="0 0 800 70" 
+                className="w-full h-full" 
+                viewBox="0 0 600 50" 
                 preserveAspectRatio="none"
               >
                 <defs>
-                  <linearGradient id="hourlyTempGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+                  <linearGradient id="hourlyTempGradMobile" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.3" />
                     <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
-                <path d={chartAreaPath} fill="url(#hourlyTempGrad)" />
+                <path d={chartAreaPath} fill="url(#hourlyTempGradMobile)" />
                 <path 
                   d={chartSvgPath} 
                   fill="none" 
                   stroke="#38bdf8" 
-                  strokeWidth="2.5" 
+                  strokeWidth="2" 
                   strokeLinecap="round"
                 />
               </svg>
             </div>
 
-            {/* Horizontal Scrollable Hour Cards */}
-            <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-3 pt-1">
+            {/* Scrollable Hour Cards */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               {hourlyItems.map((item) => {
                 const cond = getWeatherCondition(item.weatherCode, item.isDay);
-                const isHovered = hoveredHourIndex === item.index;
 
                 return (
                   <div
                     key={item.rawTime}
-                    onMouseEnter={() => setHoveredHourIndex(item.index)}
-                    onMouseLeave={() => setHoveredHourIndex(null)}
-                    className={`flex-shrink-0 w-24 p-3 rounded-2xl flex flex-col items-center justify-between gap-2.5 transition-all border ${
-                      isHovered
-                        ? 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_16px_rgba(6,182,212,0.3)] -translate-y-1'
-                        : 'glass-panel-interactive border-white/5 hover:border-white/20'
-                    }`}
+                    className="shrink-0 w-20 p-2.5 rounded-xl bg-slate-950/60 border border-white/5 flex flex-col items-center justify-between gap-1.5"
                   >
-                    {/* Time Label */}
-                    <span className="text-xs font-mono font-bold text-slate-300">
+                    <span className="text-[11px] font-mono font-medium text-slate-400">
                       {item.timeLabel}
                     </span>
 
-                    {/* Weather Vector Icon */}
                     <DynamicWeatherIcon 
                       name={cond.icon} 
-                      size={26} 
-                      glow={isHovered}
-                      glowColor={cond.theme.primaryColor}
+                      size={22} 
                     />
 
-                    {/* Temperature */}
-                    <span className="font-display font-bold text-base text-white">
+                    <span className="font-mono font-bold text-sm text-white">
                       {formatTemp(item.temp, tempUnit)}
                     </span>
 
-                    {/* Precipitation Probability Bar & Pill */}
-                    <div className="w-full flex flex-col items-center gap-1">
-                      <div className="flex items-center gap-0.5 text-[11px] font-mono text-cyan-300 font-medium">
-                        <Droplets size={11} className={item.pop > 30 ? 'text-sky-400 animate-bounce' : 'text-slate-400'} />
-                        <span>{item.pop}%</span>
-                      </div>
-                      
-                      <div className="w-full h-1 rounded-full bg-slate-800 overflow-hidden">
-                        <div 
-                          className="h-full bg-sky-400 rounded-full transition-all duration-500"
-                          style={{ width: `${item.pop}%` }}
-                        />
-                      </div>
+                    {/* Rain probability */}
+                    <div className="flex items-center gap-0.5 text-[10px] font-mono text-sky-400">
+                      <Droplets size={10} />
+                      <span>{item.pop}%</span>
                     </div>
 
-                    {/* Wind Speed */}
-                    <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
-                      <Wind size={10} className="text-teal-400" />
+                    {/* Wind */}
+                    <div className="flex items-center gap-0.5 text-[9px] font-mono text-slate-500">
+                      <Wind size={9} />
                       <span>{formatSpeed(item.windSpeed, speedUnit)}</span>
                     </div>
                   </div>
@@ -265,9 +226,9 @@ export function ForecastSection({
           </div>
         )}
 
-        {/* 7-Day Extended Forecast */}
+        {/* 7-Day Forecast */}
         {activeTab === 'daily' && (
-          <div className="divide-y divide-white/5 space-y-2">
+          <div className="divide-y divide-white/5 space-y-1.5">
             {daily.time.map((dateStr, index) => {
               const code = daily.weather_code[index] ?? 0;
               const cond = getWeatherCondition(code, 1);
@@ -278,56 +239,55 @@ export function ForecastSection({
               const pop = daily.precipitation_probability_max?.[index] ?? 0;
               const uvMax = daily.uv_index_max?.[index] ?? 0;
 
-              // Normalized bar calculation
               const totalSpan = Math.max(1, weekMaxTemp - weekMinTemp);
               const leftOffsetPct = ((minTConverted - weekMinTemp) / totalSpan) * 100;
-              const barWidthPct = Math.max(10, ((maxTConverted - minTConverted) / totalSpan) * 100);
+              const barWidthPct = Math.max(12, ((maxTConverted - minTConverted) / totalSpan) * 100);
 
               return (
                 <div 
                   key={dateStr}
-                  className="py-3 px-2 sm:px-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors"
+                  className="py-2.5 px-1 flex items-center justify-between gap-2"
                 >
-                  {/* Day Name & Date */}
-                  <div className="w-28 shrink-0">
-                    <span className="font-display font-bold text-sm sm:text-base text-white block">
+                  {/* Day Name */}
+                  <div className="w-20 shrink-0">
+                    <span className="font-medium text-xs text-white block">
                       {formatDayName(dateStr, index === 0)}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-[10px] text-slate-500 font-mono">
                       {formatDateLabel(dateStr)}
                     </span>
                   </div>
 
-                  {/* Weather Icon & Condition */}
-                  <div className="flex items-center gap-3 w-40 shrink-0">
-                    <DynamicWeatherIcon name={cond.icon} size={26} />
-                    <span className="text-xs text-slate-200 font-medium truncate">
+                  {/* Icon & Condition */}
+                  <div className="flex items-center gap-1.5 w-24 shrink-0">
+                    <DynamicWeatherIcon name={cond.icon} size={20} />
+                    <span className="text-[11px] text-slate-300 truncate">
                       {cond.label}
                     </span>
                   </div>
 
-                  {/* Precipitation & UV Pills */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {pop > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                        <Droplets size={11} /> {pop}%
+                  {/* Rain or UV indicator */}
+                  <div className="w-12 text-right shrink-0">
+                    {pop > 0 ? (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono text-sky-400">
+                        <Droplets size={10} /> {pop}%
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono text-amber-400">
+                        <Sun size={10} /> {Math.round(uvMax)}
                       </span>
                     )}
-
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/25">
-                      <Sun size={11} /> UV {Math.round(uvMax)}
-                    </span>
                   </div>
 
-                  {/* Temperature Spectrum Bar */}
-                  <div className="w-full sm:w-64 flex items-center gap-3">
-                    <span className="font-mono text-xs text-slate-400 w-8 text-right">
+                  {/* Range Bar */}
+                  <div className="flex-1 flex items-center gap-1.5 max-w-[120px]">
+                    <span className="font-mono text-[11px] text-slate-400 w-6 text-right">
                       {minTConverted}°
                     </span>
 
-                    <div className="relative flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div className="relative flex-1 h-1.5 rounded-full bg-slate-950 overflow-hidden">
                       <div 
-                        className="absolute h-full rounded-full bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-500 shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                        className="absolute h-full rounded-full bg-gradient-to-r from-cyan-400 to-amber-400"
                         style={{
                           left: `${Math.max(0, leftOffsetPct)}%`,
                           width: `${Math.min(100 - leftOffsetPct, barWidthPct)}%`,
@@ -335,7 +295,7 @@ export function ForecastSection({
                       />
                     </div>
 
-                    <span className="font-mono text-xs font-bold text-white w-8">
+                    <span className="font-mono text-[11px] font-bold text-white w-6">
                       {maxTConverted}°
                     </span>
                   </div>

@@ -3,14 +3,13 @@ import {
   Search, 
   MapPin, 
   Navigation, 
-  RefreshCw, 
   X, 
   Loader2, 
-  Radio,
+  Settings,
   Bookmark,
-  ChevronDown
+  Sparkles
 } from 'lucide-react';
-import { GeoLocation, TempUnit, SpeedUnit, SavedCity } from '../types';
+import { GeoLocation, SavedCity } from '../types';
 import { searchCities, POPULAR_LOCATIONS } from '../services/weatherApi';
 
 interface HeaderProps {
@@ -18,12 +17,8 @@ interface HeaderProps {
   onSelectLocation: (loc: GeoLocation) => void;
   onLocateUser: () => void;
   isLocating: boolean;
-  onRefresh: () => void;
-  isRefreshing: boolean;
-  tempUnit: TempUnit;
-  onToggleTempUnit: (unit: TempUnit) => void;
-  speedUnit: SpeedUnit;
-  onToggleSpeedUnit: (unit: SpeedUnit) => void;
+  onOpenSettings: () => void;
+  onOpenAiChat: () => void;
   savedCities: SavedCity[];
   onToggleSaveCity: (city: GeoLocation) => void;
   isCitySaved: boolean;
@@ -34,24 +29,18 @@ export function Header({
   onSelectLocation,
   onLocateUser,
   isLocating,
-  onRefresh,
-  isRefreshing,
-  tempUnit,
-  onToggleTempUnit,
-  speedUnit,
-  onToggleSpeedUnit,
+  onOpenSettings,
+  onOpenAiChat,
   savedCities,
   onToggleSaveCity,
   isCitySaved,
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<GeoLocation[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [showSavedDropdown, setShowSavedDropdown] = useState(false);
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-  const savedDropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
 
   // Debounced search
@@ -85,37 +74,15 @@ export function Header({
     };
   }, [searchQuery]);
 
-  // Click outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-      if (savedDropdownRef.current && !savedDropdownRef.current.contains(event.target as Node)) {
-        setShowSavedDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const handleSelect = (loc: GeoLocation) => {
     onSelectLocation(loc);
     setSearchQuery('');
     setSuggestions([]);
-    setIsOpen(false);
+    setIsSearchOpen(false);
     setSelectedIndex(-1);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'Enter') {
-        setIsOpen(true);
-      }
-      return;
-    }
-
     const list = suggestions.length > 0 ? suggestions : POPULAR_LOCATIONS.slice(0, 5);
 
     if (e.key === 'ArrowDown') {
@@ -132,316 +99,139 @@ export function Header({
         handleSelect(list[0]);
       }
     } else if (e.key === 'Escape') {
-      setIsOpen(false);
+      setIsSearchOpen(false);
     }
   };
 
   return (
-    <header className="relative z-30 w-full pt-4 pb-2 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Top Main Navigation Bar */}
-      <div className="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 border border-white/10 shadow-2xl">
-        
-        {/* Brand Logo & Telemetry Status */}
-        <div className="flex items-center justify-between w-full md:w-auto gap-3">
-          <div className="flex items-center gap-2.5 group cursor-pointer" onClick={() => onRefresh()}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-transform group-hover:scale-105">
-              <span className="font-display font-black text-white text-xl tracking-tighter">dx</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-display font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-cyan-200">
-                  deuxweather
-                </span>
-                <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold tracking-wider uppercase bg-cyan-500/20 text-cyan-300 rounded border border-cyan-500/30">
-                  ULTRA-HD
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-emerald-400 font-semibold">LIVE TELEMETRY</span>
-                <span className="text-slate-600">•</span>
-                <span>OPEN-METEO ENGINE</span>
-              </div>
-            </div>
+    <header className="relative z-30 w-full max-w-md mx-auto pt-3 pb-1 px-4">
+      {/* Top Mobile Bar */}
+      <div className="flex items-center justify-between gap-2 py-1">
+        {/* Brand & Location Title */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center shadow-sm">
+            <span className="font-display font-black text-cyan-300 text-sm tracking-tighter">dx</span>
           </div>
-
-          {/* Mobile Right Controls */}
-          <div className="flex md:hidden items-center gap-1.5">
-            <button
-              id="mobile-geolocation-btn"
-              onClick={onLocateUser}
-              disabled={isLocating}
-              className="p-2 rounded-xl glass-pill text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20 transition-all border border-cyan-500/30"
-              title="Locate Current Position"
-              aria-label="Locate GPS position"
-            >
-              <Navigation size={18} className={isLocating ? 'animate-spin text-cyan-300' : ''} />
-            </button>
-            <button
-              id="mobile-refresh-btn"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="p-2 rounded-xl glass-pill text-slate-300 hover:text-white hover:bg-white/10 transition-all"
-              title="Refresh Real-time Data"
-              aria-label="Refresh weather data"
-            >
-              <RefreshCw size={18} className={isRefreshing ? 'animate-spin text-cyan-400' : ''} />
-            </button>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-extrabold text-base text-white tracking-tight">
+                deuxweather
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono block -mt-0.5">
+              {currentLocation.name}
+            </span>
           </div>
         </div>
 
-        {/* Global Auto-Suggest Search Bar */}
-        <div ref={searchContainerRef} className="relative w-full md:max-w-md lg:max-w-lg">
-          <div className="relative flex items-center">
-            <Search size={18} className="absolute left-3.5 text-slate-400 pointer-events-none" />
-            <input
-              id="global-city-search-input"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setIsOpen(true);
-              }}
-              onFocus={() => setIsOpen(true)}
-              onKeyDown={handleKeyDown}
-              placeholder="Search any world city, state, or coordinates..."
-              className="w-full pl-10 pr-10 py-2.5 text-sm bg-slate-900/80 hover:bg-slate-900 focus:bg-slate-900 border border-white/10 focus:border-cyan-400/60 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 shadow-inner transition-all"
-              autoComplete="off"
-            />
-            
-            {/* Clear or Loading Icon */}
-            <div className="absolute right-3 flex items-center gap-1">
-              {isLoading ? (
-                <Loader2 size={16} className="text-cyan-400 animate-spin" />
-              ) : searchQuery ? (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSuggestions([]);
-                    setIsOpen(false);
-                  }}
-                  className="text-slate-400 hover:text-white p-0.5 rounded transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X size={16} />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Auto-suggest dropdown menu */}
-          {isOpen && (
-            <div className="absolute top-full mt-2 left-0 right-0 glass-panel rounded-xl border border-white/15 shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-              {suggestions.length > 0 ? (
-                <div className="p-1.5 divide-y divide-white/5">
-                  <div className="px-3 py-1.5 text-[11px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                    <span>Global Search Results</span>
-                    <span>{suggestions.length} places found</span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto custom-scrollbar pt-1">
-                    {suggestions.map((item, index) => (
-                      <button
-                        key={`${item.id}-${index}`}
-                        onClick={() => handleSelect(item)}
-                        className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between text-sm transition-all ${
-                          selectedIndex === index
-                            ? 'bg-cyan-500/20 text-cyan-200 border-l-2 border-cyan-400 pl-2.5'
-                            : 'text-slate-200 hover:bg-white/5'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <MapPin size={15} className={selectedIndex === index ? 'text-cyan-400' : 'text-slate-400'} />
-                          <div className="truncate">
-                            <span className="font-semibold text-white">{item.name}</span>
-                            {item.admin1 && <span className="text-slate-400 text-xs">, {item.admin1}</span>}
-                            {item.country && <span className="text-slate-400 text-xs">, {item.country}</span>}
-                          </div>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-500 shrink-0 pl-2">
-                          {item.latitude.toFixed(2)}°, {item.longitude.toFixed(2)}°
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : searchQuery.trim().length >= 2 && !isLoading ? (
-                <div className="p-6 text-center text-slate-400 text-sm">
-                  <p>No locations found matching &quot;{searchQuery}&quot;</p>
-                  <p className="text-xs text-slate-500 mt-1">Try searching by official city name or country.</p>
-                </div>
-              ) : (
-                <div className="p-2">
-                  <div className="px-3 py-1 text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                    Popular World Megacities
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    {POPULAR_LOCATIONS.map((city, index) => (
-                      <button
-                        key={city.id}
-                        onClick={() => handleSelect(city)}
-                        className={`px-3 py-2 rounded-lg text-left text-xs flex items-center justify-between transition-colors ${
-                          selectedIndex === index ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-300 hover:bg-white/5'
-                        }`}
-                      >
-                        <span className="font-medium text-white">{city.name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{city.country_code}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right Controls: Geolocation, Unit Switchers, Saved Locations */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          
-          {/* GPS Auto-detect Button */}
+        {/* Action Buttons: AI, Bookmark, GPS, Settings */}
+        <div className="flex items-center gap-1.5">
+          {/* Search Trigger */}
           <button
-            id="desktop-geolocation-btn"
-            onClick={onLocateUser}
-            disabled={isLocating}
-            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold glass-pill text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-            title="Auto-detect current GPS location"
+            id="mobile-search-trigger-btn"
+            onClick={() => {
+              setIsSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 50);
+            }}
+            className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 transition-all"
+            aria-label="Search city"
           >
-            <Navigation size={14} className={isLocating ? 'animate-spin text-cyan-300' : 'text-cyan-400'} />
-            <span>{isLocating ? 'Locating...' : 'GPS Auto'}</span>
+            <Search size={16} />
           </button>
 
-          {/* Bookmark Current City Button */}
+          {/* AI Meteorological Assistant */}
           <button
-            id="save-current-city-btn"
+            id="mobile-ai-assistant-btn"
+            onClick={onOpenAiChat}
+            className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:text-cyan-200 flex items-center justify-center active:scale-95 transition-all shadow-sm"
+            aria-label="Ask AI Assistant"
+            title="Ask AI Assistant"
+          >
+            <Sparkles size={16} className="text-cyan-400" />
+          </button>
+
+          {/* Bookmark Current City */}
+          <button
+            id="mobile-bookmark-btn"
             onClick={() => onToggleSaveCity(currentLocation)}
-            className={`p-2 rounded-xl glass-pill transition-all border ${
-              isCitySaved 
-                ? 'text-amber-400 bg-amber-500/20 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]' 
-                : 'text-slate-400 hover:text-slate-200 border-white/10 hover:bg-white/5'
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center active:scale-95 transition-all ${
+              isCitySaved
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                : 'bg-slate-900/90 border-white/10 text-slate-400 hover:text-white'
             }`}
-            title={isCitySaved ? 'Saved in favorites' : 'Save location to favorites'}
-            aria-label="Save location to favorites"
+            aria-label="Save to favorites"
           >
             <Bookmark size={16} className={isCitySaved ? 'fill-amber-400' : ''} />
           </button>
 
-          {/* Saved Cities Dropdown */}
-          {savedCities.length > 0 && (
-            <div ref={savedDropdownRef} className="relative">
-              <button
-                onClick={() => setShowSavedDropdown(!showSavedDropdown)}
-                className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl glass-pill text-xs font-medium text-slate-300 hover:text-white border-white/10 hover:bg-white/5 transition-all"
-                title="View saved cities"
-              >
-                <span>Saved ({savedCities.length})</span>
-                <ChevronDown size={14} className={`transition-transform duration-200 ${showSavedDropdown ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showSavedDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-56 glass-panel rounded-xl border border-white/15 shadow-2xl p-1.5 z-50">
-                  <div className="px-2.5 py-1 text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                    Favorite Locations
-                  </div>
-                  <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-white/5">
-                    {savedCities.map((saved) => (
-                      <button
-                        key={saved.id}
-                        onClick={() => {
-                          onSelectLocation({
-                            id: Number(saved.id) || 0,
-                            name: saved.name,
-                            latitude: saved.latitude,
-                            longitude: saved.longitude,
-                            country: saved.country,
-                            admin1: saved.admin1,
-                          });
-                          setShowSavedDropdown(false);
-                        }}
-                        className="w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between text-slate-200 hover:bg-white/10 transition-colors group"
-                      >
-                        <div className="truncate">
-                          <span className="font-semibold text-white group-hover:text-cyan-300 transition-colors">{saved.name}</span>
-                          {saved.country && <span className="text-[11px] text-slate-400">, {saved.country}</span>}
-                        </div>
-                        <MapPin size={12} className="text-slate-500 group-hover:text-cyan-400 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Unit Switcher: Temperature */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-900/90 border border-white/10 text-xs font-mono">
-            <button
-              onClick={() => onToggleTempUnit('C')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all ${
-                tempUnit === 'C'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              °C
-            </button>
-            <button
-              onClick={() => onToggleTempUnit('F')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all ${
-                tempUnit === 'F'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(6,182,212,0.4)]'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              °F
-            </button>
-          </div>
-
-          {/* Speed Unit Switcher */}
-          <div className="hidden sm:flex items-center p-0.5 rounded-xl bg-slate-900/90 border border-white/10 text-xs font-mono">
-            {(['km/h', 'mph', 'm/s'] as SpeedUnit[]).map((unit) => (
-              <button
-                key={unit}
-                onClick={() => onToggleSpeedUnit(unit)}
-                className={`px-2 py-1.5 rounded-lg transition-all ${
-                  speedUnit === unit
-                    ? 'bg-slate-700 text-cyan-300 font-semibold shadow-inner'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {unit}
-              </button>
-            ))}
-          </div>
-
-          {/* Refresh Action */}
+          {/* GPS Auto-locate */}
           <button
-            id="desktop-refresh-btn"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="hidden md:flex p-2.5 rounded-xl glass-pill text-slate-300 hover:text-white hover:bg-white/10 transition-all border border-white/10 hover:border-white/20 active:scale-95"
-            title="Refresh Real-time Weather Telemetry"
-            aria-label="Refresh telemetry data"
+            id="mobile-gps-btn"
+            onClick={onLocateUser}
+            disabled={isLocating}
+            className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-cyan-400 hover:text-cyan-300 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+            aria-label="Locate GPS position"
           >
-            <RefreshCw size={16} className={isRefreshing ? 'animate-spin text-cyan-400' : ''} />
+            <Navigation size={16} className={isLocating ? 'animate-spin text-cyan-300' : ''} />
+          </button>
+
+          {/* Settings Modal Trigger */}
+          <button
+            id="mobile-settings-btn"
+            onClick={onOpenSettings}
+            className="w-9 h-9 rounded-xl bg-slate-900/90 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center active:scale-95 transition-all"
+            aria-label="Open settings"
+          >
+            <Settings size={16} />
           </button>
         </div>
-
       </div>
 
-      {/* Quick Location Pills Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2.5 pb-0.5 px-1">
-        <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1 shrink-0 uppercase">
-          <Radio size={12} className="text-cyan-400" /> Hotspots:
+      {/* Quick Location Pills (Favorites & Trending) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 pb-1">
+        {savedCities.length > 0 && (
+          <span className="text-[10px] font-mono text-amber-400 font-semibold uppercase shrink-0">
+            Saved:
+          </span>
+        )}
+        {savedCities.map((city) => {
+          const isSelected = currentLocation.name.toLowerCase() === city.name.toLowerCase();
+          return (
+            <button
+              key={`saved-${city.id}`}
+              onClick={() => onSelectLocation({
+                id: Number(city.id) || 0,
+                name: city.name,
+                latitude: city.latitude,
+                longitude: city.longitude,
+                country: city.country,
+                admin1: city.admin1,
+              })}
+              className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                isSelected
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-slate-900/80 text-slate-300 border border-white/5 hover:border-white/20'
+              }`}
+            >
+              {city.name}
+            </button>
+          );
+        })}
+
+        <span className="text-[10px] font-mono text-slate-500 uppercase shrink-0 pl-1">
+          Popular:
         </span>
-        {POPULAR_LOCATIONS.map((loc) => {
+        {POPULAR_LOCATIONS.slice(0, 4).map((loc) => {
           const isSelected = currentLocation.name.toLowerCase() === loc.name.toLowerCase();
           return (
             <button
               key={`quick-${loc.id}`}
               onClick={() => onSelectLocation(loc)}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                 isSelected
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
-                  : 'bg-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10 border border-white/5'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40'
+                  : 'bg-slate-900/80 text-slate-400 border border-white/5 hover:text-white'
               }`}
             >
               {loc.name}
@@ -449,6 +239,90 @@ export function Header({
           );
         })}
       </div>
+
+      {/* Full-Screen / Floating Search Overlay for Mobile */}
+      {isSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md p-4 flex flex-col items-center justify-start animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-white/10 p-4 shadow-2xl space-y-3">
+            {/* Search Input Header */}
+            <div className="relative flex items-center">
+              <Search size={18} className="absolute left-3 text-slate-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search city name, state, country..."
+                className="w-full pl-10 pr-10 py-3 text-sm bg-slate-950 border border-white/10 focus:border-cyan-400 rounded-xl text-white placeholder-slate-500 focus:outline-none"
+                autoComplete="off"
+              />
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchOpen(false);
+                }}
+                className="absolute right-3 p-1 text-slate-400 hover:text-white rounded-md"
+                aria-label="Close search"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Results or Suggestions */}
+            <div className="max-h-72 overflow-y-auto space-y-1 divide-y divide-white/5">
+              {isLoading ? (
+                <div className="py-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                  <Loader2 size={16} className="animate-spin text-cyan-400" />
+                  <span>Searching global locations...</span>
+                </div>
+              ) : suggestions.length > 0 ? (
+                suggestions.map((item, index) => (
+                  <button
+                    key={`${item.id}-${index}`}
+                    onClick={() => handleSelect(item)}
+                    className="w-full text-left py-2.5 px-3 rounded-lg flex items-center justify-between text-sm hover:bg-white/5 text-slate-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <MapPin size={15} className="text-cyan-400 shrink-0" />
+                      <div className="truncate">
+                        <span className="font-semibold text-white">{item.name}</span>
+                        {item.admin1 && <span className="text-slate-400 text-xs">, {item.admin1}</span>}
+                        {item.country && <span className="text-slate-400 text-xs">, {item.country}</span>}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                      {item.latitude.toFixed(1)}°, {item.longitude.toFixed(1)}°
+                    </span>
+                  </button>
+                ))
+              ) : searchQuery.trim().length >= 2 ? (
+                <div className="py-6 text-center text-slate-400 text-xs">
+                  No cities found matching &quot;{searchQuery}&quot;
+                </div>
+              ) : (
+                <div className="py-2">
+                  <span className="text-[10px] font-mono text-slate-500 uppercase block mb-1.5">
+                    Popular Global Cities
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {POPULAR_LOCATIONS.map((city) => (
+                      <button
+                        key={city.id}
+                        onClick={() => handleSelect(city)}
+                        className="py-2 px-3 rounded-lg text-left text-xs bg-slate-950/60 border border-white/5 text-slate-300 hover:text-white hover:border-white/20 transition-all flex items-center justify-between"
+                      >
+                        <span className="font-medium text-white">{city.name}</span>
+                        <span className="text-[10px] font-mono text-slate-500">{city.country_code}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
