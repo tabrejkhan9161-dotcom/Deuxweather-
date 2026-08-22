@@ -25,6 +25,59 @@ function getAI() {
   });
 }
 
+const CANDIDATE_MODELS = [
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-2.0-flash',
+];
+
+async function generateWithFallback(options: {
+  prompt: string;
+  responseMimeType?: string;
+  temperature?: number;
+}): Promise<string> {
+  const ai = getAI();
+  let lastError: any = null;
+
+  for (const model of CANDIDATE_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts: [{ text: options.prompt }] }],
+          config: {
+            temperature: options.temperature ?? 0.5,
+            ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+          },
+        });
+        const text = response.text?.trim();
+        if (text) {
+          return text;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const msg = err?.message || String(err);
+        const isUnavailableOrRateLimited =
+          msg.includes('503') ||
+          msg.includes('UNAVAILABLE') ||
+          msg.includes('429') ||
+          msg.includes('high demand') ||
+          msg.includes('RESOURCE_EXHAUSTED');
+
+        if (isUnavailableOrRateLimited && attempt === 0) {
+          // Brief exponential backoff before retrying same model
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          continue;
+        }
+        // Break out to try the next candidate model
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error('All model candidates failed');
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -54,17 +107,12 @@ Provide a concise, helpful, and scientifically accurate response in 2-3 short se
 
       let replyText = '';
       try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.7-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
-            temperature: 0.5,
-          },
+        replyText = await generateWithFallback({
+          prompt,
+          temperature: 0.5,
         });
-        replyText = response.text || '';
       } catch (geminiErr: any) {
-        console.warn('Gemini API fallback for chat:', geminiErr?.message);
+        console.warn('Gemini AI fallback activated for chat query:', geminiErr?.message);
         replyText = `Based on current telemetry in ${city || 'your area'}, conditions are ${condition || 'stable'} at ${temp ?? 20}°C with a ${rainProb ?? 0}% rain chance. Air quality is ${Number(aqiUs) > 100 ? 'elevated' : 'good'}. Let me know if you need specific travel or clothing recommendations!`;
       }
 
@@ -121,22 +169,19 @@ Ensure each value is a single, punchy, informative line without line breaks. Ret
 
       let parsedResult;
       try {
-        const ai = getAI();
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.7-flash',
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.4,
-          },
+        const raw = await generateWithFallback({
+          prompt,
+          responseMimeType: 'application/json',
+          temperature: 0.4,
         });
 
-        const raw = (response.text || '{}').trim();
-        parsedResult = JSON.parse(raw);
+        // Strip any accidental markdown formatting if present
+        const cleanJson = raw.replace(/^```json/i, '').replace(/```$/g, '').trim();
+        parsedResult = JSON.parse(cleanJson);
       } catch (geminiErr: any) {
-        console.warn('Gemini API call warning in VibeCast:', geminiErr?.message);
+        console.warn('Gemini AI fallback activated for VibeCast:', geminiErr?.message);
         
-        // Intelligent algorithmic fallback if GEMINI_API_KEY is not set or network issue
+        // Intelligent algorithmic fallback if AI model is unreachable or busy
         const tempNum = Number(temp) || 20;
         const popNum = Number(rainProb) || 0;
         const uvNum = Number(uvIndex) || 3;
